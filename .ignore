@@ -1,0 +1,7 @@
+.git
+.rpt2_cache
+coverage
+dist
+docs
+node_modules
+tools
