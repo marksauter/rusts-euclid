@@ -115,7 +115,7 @@
     "typescript": "^3.6.3"
   },
   "dependencies": {
-    "@rusts/arrayvec": "^0.1.12",
-    "@rusts/std": "^0.2.8"
+    "@rusts/arrayvec": "^0.1.13",
+    "@rusts/std": "^0.2.9"
   }
 }

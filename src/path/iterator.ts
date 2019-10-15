@@ -43,21 +43,21 @@ export class PathIterator extends IteratorBase<PathEvent> {
   /**
    * Returns iterator that turns curves into line segments.
    */
-  public flattened(tolerance: number): FlattenedPath<this> {
+  public flattened(tolerance: number): FlattenedPath<this["Self"]> {
     return new FlattenedPath(this, tolerance);
   }
 
   /**
    * Returns an iterator applying a 2D transform to all of its events.
    */
-  public transformed(mat: Transform2D): TransformedPath<this> {
+  public transformed(mat: Transform2D): TransformedPath<this["Self"]> {
     return new TransformedPath(this, mat);
   }
 
   /**
    * Returns an iterator of segments.
    */
-  public bezier_segments(): BezierSegments<this> {
+  public bezier_segments(): BezierSegments<this["Self"]> {
     return new BezierSegments(this);
   }
 
@@ -174,16 +174,14 @@ export class SvgIterator extends IteratorBase<SvgEvent> {
    * Returns an iterator of FlattenedEvents, turning curves into sequences of
    * line segments.
    */
-  // FIXME: PathEvents<this> is not assignable to PathIterator
-  // @ts-ignore
-  public flattened(tolerance: number): FlattenedPath<PathEvents<this>> {
+  public flattened(tolerance: number): FlattenedPath<PathEvents<this["Self"]>> {
     return this.path_events().flattened(tolerance);
   }
 
   /**
    * Returns an iterator of path events.
    */
-  public path_events(): PathEvents<this> {
+  public path_events(): PathEvents<this["Self"]> {
     return new PathEvents(this);
   }
 }
@@ -196,21 +194,21 @@ export class FlattenedIterator extends IteratorBase<FlattenedEvent> {
   /**
    * Returns an iterator of path events
    */
-  public path_events(): Map<this, PathEvent> {
+  public path_events(): Map<this["Self"], PathEvent> {
     return this.map(to_path_event);
   }
 
   /**
    * Returns an interator of svg events.
    */
-  public svg_events(): Map<this, SvgEvent> {
+  public svg_events(): Map<this["Self"], SvgEvent> {
     return this.map(to_svg_event);
   }
 
   /**
    * Retuns an interator applying a 2D transform to all of its events.
    */
-  public transformed(mat: Transform2D): TransformedFlattened<this> {
+  public transformed(mat: Transform2D): TransformedFlattened<this["Self"]> {
     return new TransformedFlattened(this, mat);
   }
 
@@ -241,7 +239,7 @@ export class FlattenedIterator extends IteratorBase<FlattenedEvent> {
   /**
    * Returns an iterator of line segments.
    */
-  public line_segments(): LineSegments<this> {
+  public line_segments(): LineSegments<this["Self"]> {
     return new LineSegments(this);
   }
 
@@ -288,21 +286,21 @@ export class QuadraticPathIterator extends IteratorBase<QuadraticEvent> {
   /**
    * Returns an iterator of path events
    */
-  public path_events(): Map<this, PathEvent> {
+  public path_events(): Map<this["Self"], PathEvent> {
     return this.map(to_path_event);
   }
 
   /**
    * Returns an interator of svg events.
    */
-  public svg_events(): Map<this, SvgEvent> {
+  public svg_events(): Map<this["Self"], SvgEvent> {
     return this.map(to_svg_event);
   }
 
   /**
    * Retuns an interator applying a 2D transform to all of its events.
    */
-  public transformed(mat: Transform2D): TransformedQuadratic<this> {
+  public transformed(mat: Transform2D): TransformedQuadratic<this["Self"]> {
     return new TransformedQuadratic(this, mat);
   }
 
