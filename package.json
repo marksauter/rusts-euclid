@@ -72,10 +72,7 @@
       "src/*.{js,ts}"
     ]
   },
-  "prettier": {
-    "semi": false,
-    "singleQuote": true
-  },
+  "prettier": {},
   "commitlint": {
     "extends": [
       "@commitlint/config-conventional"
@@ -118,7 +115,7 @@
     "typescript": "^3.6.3"
   },
   "dependencies": {
-    "@rusts/arrayvec": "^0.1.11",
-    "@rusts/std": "^0.2.7"
+    "@rusts/arrayvec": "^0.1.12",
+    "@rusts/std": "^0.2.8"
   }
 }

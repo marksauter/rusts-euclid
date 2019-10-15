@@ -1054,17 +1054,17 @@
     once "^1.4.0"
     universal-user-agent "^4.0.0"
 
-"@rusts/arrayvec@^0.1.11":
-  version "0.1.11"
-  resolved "https://registry.yarnpkg.com/@rusts/arrayvec/-/arrayvec-0.1.11.tgz#38b2be1bdfad9448d7035a3f4d5bb3162b88a97b"
-  integrity sha512-2G5S9t534pVChoD4OxB259HiOJ1lkVilt21AqcuIVgVtNhnZdSqzr1Zav7rotnUA9Jc4XktX4TlA70XohNEsUg==
+"@rusts/arrayvec@^0.1.12":
+  version "0.1.12"
+  resolved "https://registry.yarnpkg.com/@rusts/arrayvec/-/arrayvec-0.1.12.tgz#cd95747fa2781190d33ceca411a095f9d752c1b5"
+  integrity sha512-FCfuuZF4CHRwkUv7IOgeYUvuuvpPb5vxcv9m8FWL8iCywYJ5XqXNl42a5hyi6Rz6lKnToQGTxxLlVcLz72s3gw==
   dependencies:
-    "@rusts/std" "^0.2.7"
+    "@rusts/std" "^0.2.8"
 
-"@rusts/std@^0.2.7":
-  version "0.2.7"
-  resolved "https://registry.yarnpkg.com/@rusts/std/-/std-0.2.7.tgz#8cd161163cc40f38df67539881a62328a3601060"
-  integrity sha512-CzVsS/m2ZdonVtERaePHF4rfxggvLEITtflKHkdS2HXPbnwDC33iRQPLtL2hIzmMV3eLXcQ/anFHgiuL5eaXzw==
+"@rusts/std@^0.2.8":
+  version "0.2.8"
+  resolved "https://registry.yarnpkg.com/@rusts/std/-/std-0.2.8.tgz#ff2b26c6b24ed393d42dd08ae8271488dc7bcef9"
+  integrity sha512-y4+4rnDo1ronYpfkQ5KYBfPLCQwcu8JZr7I0isMLsBY3uL5or5Tdmi0pAQPsE6I3wlun7T7KgD5atZzksol/NA==
   dependencies:
     "@types/lodash.clonedeep" "^4.5.6"
     lodash.clonedeep "^4.5.0"
