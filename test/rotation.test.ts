@@ -1,8 +1,7 @@
 import { Rotation2D } from "../src/rotation";
 import { point2 } from "../src/euclid";
 import { FRAC_PI_2, PI } from "@rusts/std";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq } = test_macros;
+const { assert, assert_eq } = require("@rusts/std/dist/lib/macros.test");
 
 describe("Rotation2D", () => {
   test("simple", () => {

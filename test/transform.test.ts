@@ -10,8 +10,7 @@ import {
   vec2
 } from "../src/euclid";
 import { FRAC_PI_2 } from "@rusts/std";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq } = test_macros;
+const { assert, assert_eq } = require("@rusts/std/dist/lib/macros.test");
 
 describe("Transform2D", () => {
   test("translation", () => {

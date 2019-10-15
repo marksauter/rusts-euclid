@@ -8,8 +8,7 @@ import {
   point2
 } from "../src/euclid";
 import { FRAC_PI_2 } from "@rusts/std";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq, assert_ne } = test_macros;
+const { assert, assert_eq, assert_ne } = require("@rusts/std/dist/lib/macros.test");
 
 describe("Vector2D", () => {
   test("scalar_mul", () => {

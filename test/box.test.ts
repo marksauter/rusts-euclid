@@ -1,7 +1,6 @@
 import { range } from "@rusts/std";
 import { Box2D, box2, Point2D, point2, vec2, sideoff2, size2 } from "../src/euclid";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq } = test_macros;
+const { assert, assert_eq } = require("@rusts/std/dist/lib/macros.test");
 
 describe("Box2D", () => {
   test("size", () => {

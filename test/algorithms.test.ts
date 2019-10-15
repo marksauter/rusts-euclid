@@ -1,7 +1,6 @@
 import { Path, point, FillRule } from "../src/euclid";
 import { hit_test_path } from "../src/algorithms";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq, should_panic } = test_macros;
+const { assert, assert_eq, should_panic } = require("@rusts/std/dist/lib/macros.test");
 
 describe("algorithms", () => {
   test("hit_test", () => {

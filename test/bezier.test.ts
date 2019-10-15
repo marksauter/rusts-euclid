@@ -14,8 +14,7 @@ import {
   vector,
   sin_cos
 } from "../src/internal";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq, should_panic } = test_macros;
+const { assert, assert_eq, should_panic } = require("@rusts/std/dist/lib/macros.test");
 
 describe("QuadraticBezierSegment", () => {
   test("bounding_rect_for_monotonic_quadratic_bezier_segment", () => {

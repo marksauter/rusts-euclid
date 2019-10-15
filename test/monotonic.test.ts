@@ -5,8 +5,7 @@ import {
   first_monotonic_segment_intersection,
   monotonic_segment_intersections
 } from "../src/euclid";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq } = test_macros;
+const { assert, assert_eq } = require("@rusts/std/dist/lib/macros.test");
 
 describe("Monotonic", () => {
   test("two_intersections", () => {

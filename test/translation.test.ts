@@ -1,7 +1,6 @@
 import { Translation2D } from "../src/translation";
 import { Rect, rect } from "../src/euclid";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq, assert_ne } = test_macros;
+const { assert, assert_eq, assert_ne } = require("@rusts/std/dist/lib/macros.test");
 
 describe("Translation2D", () => {
   test("simple", () => {

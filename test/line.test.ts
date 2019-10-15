@@ -12,8 +12,7 @@ import {
 } from "../src/euclid";
 import { LineSegment, line_seg, Line, line, LineEquation, line_eqn } from "../src/line";
 import { Some, None, PI } from "@rusts/std";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq } = test_macros;
+const { assert, assert_eq } = require("@rusts/std/dist/lib/macros.test");
 
 function fuzzy_eq_vector(a: Vector, b: Vector, epsilon: Scalar): boolean {
   return approx_eq_eps(a.x, b.x, epsilon) && approx_eq_eps(a.y, b.y, epsilon);

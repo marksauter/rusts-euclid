@@ -1,6 +1,5 @@
 import { Triangle, triangle, point, line_seg, Rect, rect } from "../src/euclid";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq } = test_macros;
+const { assert, assert_eq } = require("@rusts/std/dist/lib/macros.test");
 
 describe("Triangle", () => {
   test("triangle_contains", () => {

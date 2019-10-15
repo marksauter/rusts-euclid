@@ -12,8 +12,7 @@ import {
   rect,
   approx_eq
 } from "../src/internal";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq, should_panic } = test_macros;
+const { assert, assert_eq, should_panic } = require("@rusts/std/dist/lib/macros.test");
 
 function test_endpoints(svg_arc: SvgArc) {
   let a1 = svg_arc.clone();

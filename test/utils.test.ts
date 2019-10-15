@@ -1,7 +1,6 @@
 import { cubic_polynomial_roots } from "../src/utils";
 import { ArrayVec } from "@rusts/arrayvec";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq } = test_macros;
+const { assert, assert_eq } = require("@rusts/std/dist/lib/macros.test");
 
 test("cubic_polynomial", () => {
   const assert_approx_eq = (a: ArrayVec<number>, b: number[], epsilon: number) => {

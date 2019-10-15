@@ -9,8 +9,7 @@ import {
   size2,
   vec2
 } from "../src/euclid";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq } = test_macros;
+const { assert, assert_eq } = require("@rusts/std/dist/lib/macros.test");
 
 describe("NonEmpty", () => {
   test("empty_nonempty", () => {

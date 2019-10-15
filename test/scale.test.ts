@@ -1,6 +1,5 @@
 import { Scale, scale } from "../src/scale";
-import { test_macros } from "@rusts/std";
-const { assert, assert_eq } = test_macros;
+const { assert, assert_eq } = require("@rusts/std/dist/lib/macros.test");
 
 enum Inch {}
 enum Cm {}
