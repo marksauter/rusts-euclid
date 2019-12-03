@@ -1,9 +1,9 @@
-import { PathEventType, FillRule, PathIterator, Point, LineSegment } from "../internal";
+import { PathEventType, FillRule, PathEventIterator, Point, LineSegment } from "../internal";
 
 /**
  * Returns whether the point is inside the path.
  */
-export function hit_test_path<I extends PathIterator>(
+export function hit_test_path<I extends PathEventIterator>(
   point: Point,
   path: I,
   fill_rule: FillRule,
@@ -22,7 +22,7 @@ export function hit_test_path<I extends PathIterator>(
 /**
  * Compute the winding number of a given position with respect to the path.
  */
-export function path_winding_number_at_position<I extends PathIterator>(
+export function path_winding_number_at_position<I extends PathEventIterator>(
   point: Point,
   path: I,
   tolerance: number

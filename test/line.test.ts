@@ -28,6 +28,11 @@ describe("LineSegment", () => {
     assert_eq(l.to_vector(), vector(1, 1));
   });
 
+  test("is_a_point", () => {
+    let l = line_seg(point(0, 0), point(0, 0));
+    assert(l.is_a_point(0));
+  });
+
   test("intersection_rotated", () => {
     let epsilon = 0.0001;
     let count = 100;

@@ -1,6 +1,8 @@
 import {
   Self,
   Clone,
+  Debug,
+  format,
   Option,
   Some,
   None,
@@ -118,6 +120,13 @@ export class Segment<U = any> extends Self {
     // Unreachable
     return (undefined as unknown) as Scalar;
   }
+
+  // Returns whether this segment is degenerate.
+  public is_degenerate(tolerance: Scalar): boolean {
+    abstract_panic("Segment", "is_degenerate");
+    // Unreachable
+    return false;
+  }
 }
 
 export interface BoundingRect<U = any> {
@@ -212,6 +221,21 @@ export class Flattened<T extends SegmentWithFlatteningStep> extends IteratorBase
     this.curve = this.curve.after_split(t) as T;
     return Some(this.curve.from());
   }
+
+  // DoubleEndedIterator
+  // public next_back(): Option<this["Item"]> {
+  //   if (this.done) {
+  //     return None();
+  //   }
+  //   let flipped_curve = this.curve.flip();
+  //   let t = flipped_curve.flattening_step(this.tolerance);
+  //   if (t >= 1) {
+  //     this.done = true;
+  //     return Some(flipped_curve.to());
+  //   }
+  //   this.curve = flipped_curve.after_split(t).flip() as T;
+  //   return Some(this.curve.from());
+  // }
 }
 
 export function approx_length_from_flattening<T extends SegmentFlattenedForEach>(
@@ -227,133 +251,397 @@ export function approx_length_from_flattening<T extends SegmentFlattenedForEach>
   return len;
 }
 
-enum BezierSegmentType {
+export enum BezierSegmentType {
   Linear = "Linear",
   Quadratic = "Quadratic",
   Cubic = "Cubic"
 }
 
-type SegmentVariant<T, S> = { type: T; segment: S };
+type SegmentVariant<T, V> = { type: T; value: V };
 
-function create_bezier_segment<T extends BezierSegmentType, S>(
+function create_bezier_segment<T extends BezierSegmentType, V>(
   type: T,
-  segment: S
-): SegmentVariant<T, S> {
-  return { type, segment };
+  value: V
+): SegmentVariant<T, V> {
+  return { type, value };
 }
 
-const BezierSegments = {
+const BezierSegmentPayloads = {
   Linear: (segment: LineSegment) => create_bezier_segment(BezierSegmentType.Linear, segment),
   Quadratic: (segment: QuadraticBezierSegment) =>
     create_bezier_segment(BezierSegmentType.Quadratic, segment),
   Cubic: (segment: CubicBezierSegment) => create_bezier_segment(BezierSegmentType.Cubic, segment)
 };
 
-type BezierSegmentSegment = ReturnType<typeof BezierSegments[keyof typeof BezierSegments]>;
+export type BezierSegmentPayload = ReturnType<
+  typeof BezierSegmentPayloads[keyof typeof BezierSegmentPayloads]
+>;
 
-export class BezierSegment<U = any> implements Clone {
+export class BezierSegment<U = any> extends Segment implements BoundingRect, Clone, Debug {
   public Self!: BezierSegment<U>;
   public _unit!: U;
 
-  public segment: BezierSegmentSegment;
+  public payload: BezierSegmentPayload;
 
-  private constructor(segment: BezierSegmentSegment) {
-    this.segment = segment;
+  private constructor(payload: BezierSegmentPayload) {
+    super();
+    this.payload = payload;
   }
 
   public static Linear<U = any>(segment: LineSegment<U>): BezierSegment<U> {
-    return new BezierSegment(BezierSegments.Linear(segment));
+    return new BezierSegment(BezierSegmentPayloads.Linear(segment));
   }
 
   public static Quadratic<U = any>(segment: QuadraticBezierSegment<U>): BezierSegment<U> {
-    return new BezierSegment(BezierSegments.Quadratic(segment));
+    return new BezierSegment(BezierSegmentPayloads.Quadratic(segment));
   }
 
   public static Cubic<U = any>(segment: CubicBezierSegment<U>): BezierSegment<U> {
-    return new BezierSegment(BezierSegments.Cubic(segment));
+    return new BezierSegment(BezierSegmentPayloads.Cubic(segment));
   }
 
-  // Clone
-  public clone(): this["Self"] {
-    switch (this.segment.type) {
+  public match(): BezierSegmentPayload {
+    return this.payload;
+  }
+
+  public linear(): LineSegment<U> {
+    switch (this.payload.type) {
       case BezierSegmentType.Linear:
-        return BezierSegment.Linear(this.segment.segment.clone());
+        return this.payload.value;
       case BezierSegmentType.Quadratic:
-        return BezierSegment.Quadratic(this.segment.segment.clone());
+        throw new Error("called `BezierSegment.linear()` on a `Quadratic` value");
       case BezierSegmentType.Cubic:
-        return BezierSegment.Cubic(this.segment.segment.clone());
+        throw new Error("called `BezierSegment.linear()` on a `Cubic` value");
     }
   }
 
-  public sample(t: Scalar): Point {
-    switch (this.segment.type) {
+  public quadratic(): QuadraticBezierSegment<U> {
+    switch (this.payload.type) {
       case BezierSegmentType.Linear:
-        return this.segment.segment.sample(t);
+        throw new Error("called `BezierSegment.quadratic()` on a `Linear` value");
       case BezierSegmentType.Quadratic:
-        return this.segment.segment.sample(t);
+        return this.payload.value;
       case BezierSegmentType.Cubic:
-        return this.segment.segment.sample(t);
+        throw new Error("called `BezierSegment.quadratic()` on a `Cubic` value");
     }
   }
 
+  public cubic(): CubicBezierSegment<U> {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        throw new Error("called `BezierSegment.cubic()` on a `Linear` value");
+      case BezierSegmentType.Quadratic:
+        throw new Error("called `BezierSegment.cubic()` on a `Quadratic` value");
+      case BezierSegmentType.Cubic:
+        return this.payload.value;
+    }
+  }
+
+  // Segment
   public from(): Point {
-    switch (this.segment.type) {
+    switch (this.payload.type) {
       case BezierSegmentType.Linear:
-        return this.segment.segment.from();
+        return this.payload.value.from();
       case BezierSegmentType.Quadratic:
-        return this.segment.segment.from();
+        return this.payload.value.from();
       case BezierSegmentType.Cubic:
-        return this.segment.segment.from();
+        return this.payload.value.from();
     }
   }
 
   public to(): Point {
-    switch (this.segment.type) {
+    switch (this.payload.type) {
       case BezierSegmentType.Linear:
-        return this.segment.segment.to();
+        return this.payload.value.to();
       case BezierSegmentType.Quadratic:
-        return this.segment.segment.to();
+        return this.payload.value.to();
       case BezierSegmentType.Cubic:
-        return this.segment.segment.to();
+        return this.payload.value.to();
     }
   }
 
-  public is_linear(tolerance: Scalar): boolean {
-    switch (this.segment.type) {
+  public sample(t: Scalar): Point {
+    switch (this.payload.type) {
       case BezierSegmentType.Linear:
-        return true;
+        return this.payload.value.sample(t);
       case BezierSegmentType.Quadratic:
-        return this.segment.segment.is_linear(tolerance);
+        return this.payload.value.sample(t);
       case BezierSegmentType.Cubic:
-        return this.segment.segment.is_linear(tolerance);
+        return this.payload.value.sample(t);
     }
   }
 
-  public baseline(): LineSegment<U> {
-    switch (this.segment.type) {
+  public x(t: Scalar): Scalar {
+    switch (this.payload.type) {
       case BezierSegmentType.Linear:
-        return this.segment.segment;
+        return this.payload.value.x(t);
       case BezierSegmentType.Quadratic:
-        return this.segment.segment.baseline();
+        return this.payload.value.x(t);
       case BezierSegmentType.Cubic:
-        return this.segment.segment.baseline();
+        return this.payload.value.x(t);
+    }
+  }
+
+  public y(t: Scalar): Scalar {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return this.payload.value.y(t);
+      case BezierSegmentType.Quadratic:
+        return this.payload.value.y(t);
+      case BezierSegmentType.Cubic:
+        return this.payload.value.y(t);
+    }
+  }
+
+  // Sample derivative at t (expecting t between 0 and 1
+  public derivative(t: Scalar): Vector<U> {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return this.payload.value.derivative(t);
+      case BezierSegmentType.Quadratic:
+        return this.payload.value.derivative(t);
+      case BezierSegmentType.Cubic:
+        return this.payload.value.derivative(t);
+    }
+  }
+
+  // Sample x derivative at t (expecting t between 0 and 1)
+  public dx(t: Scalar): Scalar {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return this.payload.value.dx(t);
+      case BezierSegmentType.Quadratic:
+        return this.payload.value.dx(t);
+      case BezierSegmentType.Cubic:
+        return this.payload.value.dx(t);
+    }
+  }
+
+  // Sample y derivative at t (expecting t between 0 and 1)
+  public dy(t: Scalar): Scalar {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return this.payload.value.dy(t);
+      case BezierSegmentType.Quadratic:
+        return this.payload.value.dy(t);
+      case BezierSegmentType.Cubic:
+        return this.payload.value.dy(t);
     }
   }
 
   public split(t: Scalar): [this["Self"], this["Self"]] {
-    switch (this.segment.type) {
+    switch (this.payload.type) {
       case BezierSegmentType.Linear: {
-        let [a, b] = this.segment.segment.split(t);
+        let [a, b] = this.payload.value.split(t);
         return [BezierSegment.Linear(a), BezierSegment.Linear(b)];
       }
       case BezierSegmentType.Quadratic: {
-        let [a, b] = this.segment.segment.split(t);
+        let [a, b] = this.payload.value.split(t);
         return [BezierSegment.Quadratic(a), BezierSegment.Quadratic(b)];
       }
       case BezierSegmentType.Cubic: {
-        let [a, b] = this.segment.segment.split(t);
+        let [a, b] = this.payload.value.split(t);
         return [BezierSegment.Cubic(a), BezierSegment.Cubic(b)];
       }
     }
+  }
+
+  public before_split(t: Scalar): this["Self"] {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear: {
+        let a = this.payload.value.before_split(t);
+        return BezierSegment.Linear(a);
+      }
+      case BezierSegmentType.Quadratic: {
+        let a = this.payload.value.before_split(t);
+        return BezierSegment.Quadratic(a);
+      }
+      case BezierSegmentType.Cubic: {
+        let a = this.payload.value.before_split(t);
+        return BezierSegment.Cubic(a);
+      }
+    }
+  }
+
+  public after_split(t: Scalar): this["Self"] {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear: {
+        let a = this.payload.value.after_split(t);
+        return BezierSegment.Linear(a);
+      }
+      case BezierSegmentType.Quadratic: {
+        let a = this.payload.value.after_split(t);
+        return BezierSegment.Quadratic(a);
+      }
+      case BezierSegmentType.Cubic: {
+        let a = this.payload.value.after_split(t);
+        return BezierSegment.Cubic(a);
+      }
+    }
+  }
+
+  public split_range(t_range: Range<number>): this["Self"] {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear: {
+        let a = this.payload.value.split_range(t_range);
+        return BezierSegment.Linear(a);
+      }
+      case BezierSegmentType.Quadratic: {
+        let a = this.payload.value.split_range(t_range);
+        return BezierSegment.Quadratic(a);
+      }
+      case BezierSegmentType.Cubic: {
+        let a = this.payload.value.split_range(t_range);
+        return BezierSegment.Cubic(a);
+      }
+    }
+  }
+
+  public flip(): this["Self"] {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear: {
+        let a = this.payload.value.flip();
+        return BezierSegment.Linear(a);
+      }
+      case BezierSegmentType.Quadratic: {
+        let a = this.payload.value.flip();
+        return BezierSegment.Quadratic(a);
+      }
+      case BezierSegmentType.Cubic: {
+        let a = this.payload.value.flip();
+        return BezierSegment.Cubic(a);
+      }
+    }
+  }
+
+  public approx_length(tolerance: Scalar): Scalar {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear: {
+        return this.payload.value.approx_length(tolerance);
+      }
+      case BezierSegmentType.Quadratic: {
+        return this.payload.value.approx_length(tolerance);
+      }
+      case BezierSegmentType.Cubic: {
+        return this.payload.value.approx_length(tolerance);
+      }
+    }
+  }
+
+  public is_degenerate(tolerance: Scalar): boolean {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return this.payload.value.is_degenerate(tolerance);
+      case BezierSegmentType.Quadratic:
+        return this.payload.value.is_degenerate(tolerance);
+      case BezierSegmentType.Cubic:
+        return this.payload.value.is_degenerate(tolerance);
+    }
+  }
+
+  public is_linear(tolerance: Scalar): boolean {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return true;
+      case BezierSegmentType.Quadratic:
+        return this.payload.value.is_linear(tolerance);
+      case BezierSegmentType.Cubic:
+        return this.payload.value.is_linear(tolerance);
+    }
+  }
+
+  public baseline(): LineSegment<U> {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return this.payload.value;
+      case BezierSegmentType.Quadratic:
+        return this.payload.value.baseline();
+      case BezierSegmentType.Cubic:
+        return this.payload.value.baseline();
+    }
+  }
+
+  // BoundingRect
+  public bounding_rect(): Rect<U> {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return this.payload.value.bounding_rect();
+      case BezierSegmentType.Quadratic:
+        return this.payload.value.bounding_rect();
+      case BezierSegmentType.Cubic:
+        return this.payload.value.bounding_rect();
+    }
+  }
+
+  public fast_bounding_rect(): Rect<U> {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return this.payload.value.fast_bounding_rect();
+      case BezierSegmentType.Quadratic:
+        return this.payload.value.fast_bounding_rect();
+      case BezierSegmentType.Cubic:
+        return this.payload.value.fast_bounding_rect();
+    }
+  }
+
+  public bounding_range_x(): [Scalar, Scalar] {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return this.payload.value.bounding_range_x();
+      case BezierSegmentType.Quadratic:
+        return this.payload.value.bounding_range_x();
+      case BezierSegmentType.Cubic:
+        return this.payload.value.bounding_range_x();
+    }
+  }
+
+  public bounding_range_y(): [Scalar, Scalar] {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return this.payload.value.bounding_range_y();
+      case BezierSegmentType.Quadratic:
+        return this.payload.value.bounding_range_y();
+      case BezierSegmentType.Cubic:
+        return this.payload.value.bounding_range_y();
+    }
+  }
+
+  public fast_bounding_range_x(): [Scalar, Scalar] {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return this.payload.value.fast_bounding_range_x();
+      case BezierSegmentType.Quadratic:
+        return this.payload.value.fast_bounding_range_x();
+      case BezierSegmentType.Cubic:
+        return this.payload.value.fast_bounding_range_x();
+    }
+  }
+
+  public fast_bounding_range_y(): [Scalar, Scalar] {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return this.payload.value.fast_bounding_range_y();
+      case BezierSegmentType.Quadratic:
+        return this.payload.value.fast_bounding_range_y();
+      case BezierSegmentType.Cubic:
+        return this.payload.value.fast_bounding_range_y();
+    }
+  }
+
+  // Clone
+  public clone(): this["Self"] {
+    switch (this.payload.type) {
+      case BezierSegmentType.Linear:
+        return BezierSegment.Linear(this.payload.value.clone());
+      case BezierSegmentType.Quadratic:
+        return BezierSegment.Quadratic(this.payload.value.clone());
+      case BezierSegmentType.Cubic:
+        return BezierSegment.Cubic(this.payload.value.clone());
+    }
+  }
+
+  // Debug
+  public fmt_debug(): string {
+    return format(`BezierSegment.${this.payload.type}({:?})`, this.payload.value);
   }
 }

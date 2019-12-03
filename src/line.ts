@@ -1,4 +1,4 @@
-import { Clone, Option, Some, None, Range, debug_assert } from "@rusts/std";
+import { Clone, Debug, format, Option, Some, None, Range, debug_assert } from "@rusts/std";
 import {
   EPSILON,
   min_max,
@@ -17,7 +17,7 @@ import { MonotonicSegment } from "./monotonic";
 import { BoundingRect, Flattened, SegmentWithFlatteningStep } from "./segment";
 
 export class LineSegment<U = any> extends SegmentWithFlatteningStep
-  implements BoundingRect, Clone, MonotonicSegment {
+  implements BoundingRect, Clone, Debug, MonotonicSegment {
   public Self!: LineSegment<U>;
 
   public start: Point<U>;
@@ -30,11 +30,6 @@ export class LineSegment<U = any> extends SegmentWithFlatteningStep
     this.end = end;
   }
 
-  // Clone
-  public clone(): this["Self"] {
-    return new LineSegment(this.start, this.end);
-  }
-
   // Start of the curve
   public from(): Point<U> {
     return this.start.clone();
@@ -45,7 +40,7 @@ export class LineSegment<U = any> extends SegmentWithFlatteningStep
     return this.end.clone();
   }
 
-  // Sample the curve at t (expecting t between 0 and 1
+  // Sample the curve at t (expecting t between 0 and 1)
   public sample(t: Scalar): Point<U> {
     return this.start.lerp(this.end, t);
   }
@@ -176,6 +171,17 @@ export class LineSegment<U = any> extends SegmentWithFlatteningStep
   // Compute the length of the segment using a flattened approximation
   public approx_length(_tolerance: Scalar): Scalar {
     return this.length();
+  }
+
+  // Returns whether this segment is degenerate.
+  public is_degenerate(tolerance: Scalar): boolean {
+    return this.is_a_point(tolerance);
+  }
+
+  public is_a_point(tolerance: Scalar): boolean {
+    let tolerance_squared = tolerance * tolerance;
+    // Use <= so that tolerance can be zero
+    return this.start.sub(this.end).square_length() <= tolerance_squared;
   }
 
   public to_vector(): Vector<U> {
@@ -395,6 +401,16 @@ export class LineSegment<U = any> extends SegmentWithFlatteningStep
 
   public flattened(tolerance: Scalar): Flattened<LineSegment<U>> {
     return new Flattened(this.clone(), tolerance);
+  }
+
+  // Clone
+  public clone(): this["Self"] {
+    return new LineSegment(this.start, this.end);
+  }
+
+  // Debug
+  public fmt_debug(): string {
+    return format("LineSegment({:?},{:?})", this.start, this.end);
   }
 }
 

@@ -11,7 +11,7 @@ import {
   Transform2D
 } from "../internal";
 
-export type EventPayloadVariant<T, P> = { type: T; value: P };
+export type EventPayloadVariant<T, V> = { type: T; value: V };
 
 function create_svg_event_payload<T extends SvgEventType, S>(
   type: T,

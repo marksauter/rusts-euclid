@@ -4,6 +4,16 @@
     "tslint-config-prettier"
   ],
   "rules": {
-    "no-duplicate-variable": false
+    "no-empty": [true, "allow-empty-functions"],
+    "no-unused-variable": [true, {"ignore-pattern": "^_"}],
+    "variable-name": {
+      "options": [
+	"ban-keywords",
+	"check-format",
+	"allow-leading-underscore",
+	"allow-pascal-case",
+	"allow-snake-case"
+      ]
+    }
   }
 }

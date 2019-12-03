@@ -1,18 +1,24 @@
 import {
   IteratorBase,
   IteratorCommon,
+  DoubleEndedIterator,
+  DoubleEndedIteratorCommon,
   Map,
+  MapDoubleEndedIterator,
   Option,
   OptionType,
   Some,
   None,
   debug_assert,
-  abstract_panic
+  abstract_panic,
+  F64_MAX,
+  F64_MIN
 } from "@rusts/std";
 import { ArrayVec } from "@rusts/arrayvec";
 import {
   Arc,
   BezierSegment,
+  BoundingRect,
   CubicBezierSegment,
   FlattenedEvent,
   FlattenedEventType,
@@ -30,6 +36,7 @@ import {
   QuadraticEventType,
   QuadraticBezierSegment,
   Rect,
+  Scalar,
   SvgArc,
   SvgEvent,
   SvgEventType,
@@ -39,7 +46,7 @@ import {
 /**
  * An extension trait for `PathEvent` iterators.
  */
-export class PathIterator extends IteratorBase<PathEvent> {
+export class PathEventIterator extends DoubleEndedIterator<PathEvent> implements BoundingRect {
   /**
    * Returns iterator that turns curves into line segments.
    */
@@ -58,7 +65,7 @@ export class PathIterator extends IteratorBase<PathEvent> {
    * Returns an iterator of segments.
    */
   public bezier_segments(): BezierSegments<this["Self"]> {
-    return new BezierSegments(this);
+    return new BezierSegments(this, false);
   }
 
   /**
@@ -66,8 +73,8 @@ export class PathIterator extends IteratorBase<PathEvent> {
    * that contains the path.
    */
   public fast_bounding_rect(): Rect {
-    let min = point(Number.MAX_VALUE, Number.MAX_VALUE);
-    let max = point(-Number.MAX_VALUE, -Number.MAX_VALUE);
+    let min = point(F64_MAX, F64_MAX);
+    let max = point(F64_MIN, F64_MIN);
     for (let evt of this) {
       let match = evt.match();
       switch (match.type) {
@@ -100,7 +107,7 @@ export class PathIterator extends IteratorBase<PathEvent> {
     }
 
     // Return an empty rectangle by default if there was no event in the path.
-    if (min.eq(point(Number.MAX_VALUE, Number.MAX_VALUE))) {
+    if (min.eq(point(F64_MAX, F64_MAX))) {
       return Rect.zero();
     }
 
@@ -108,38 +115,124 @@ export class PathIterator extends IteratorBase<PathEvent> {
   }
 
   /**
-   * Consumes the iterator and returns the smallest axis-aligned rectangle that
-   * contains the path.
+   * Consumes the iterator and returns a conservative range of x values
+   * that contains the path.
+   *
+   * Return [F64_MAX, F64_MIN] by default if there was no event in the path.
    */
-  public bounding_rect(): Rect {
-    let min = point(Number.MAX_VALUE, Number.MAX_VALUE);
-    let max = point(-Number.MAX_VALUE, -Number.MAX_VALUE);
+  public fast_bounding_range_x(): [Scalar, Scalar] {
+    let min_x = F64_MAX;
+    let max_x = F64_MIN;
     for (let evt of this) {
       let match = evt.match();
       switch (match.type) {
         case PathEventType.MoveTo: {
-          min = min.min_assign(match.value);
-          max = max.max_assign(match.value);
+          min_x = min_x.min(match.value.x);
+          max_x = max_x.max(match.value.x);
           break;
         }
         case PathEventType.Line: {
           let segment = match.value;
-          min = min.min_assign(segment.end);
-          max = max.max_assign(segment.end);
+          min_x = min_x.min(segment.end.x);
+          max_x = max_x.max(segment.end.x);
+          break;
+        }
+        case PathEventType.Quadratic: {
+          let segment = match.value;
+          min_x = min_x.min(segment.ctrl.x.min(segment.end.x));
+          max_x = max_x.max(segment.ctrl.x.max(segment.end.x));
+          break;
+        }
+        case PathEventType.Cubic: {
+          let segment = match.value;
+          min_x = min_x.min(segment.ctrl1.x.min(segment.ctrl2.x.min(segment.end.x)));
+          max_x = max_x.max(segment.ctrl1.x.max(segment.ctrl2.x.max(segment.end.x)));
+          break;
+        }
+        case PathEventType.Close:
+          break;
+      }
+    }
+
+    return [min_x, max_x];
+  }
+
+  /**
+   * Consumes the iterator and returns a conservative range of x values
+   * that contains the path.
+   *
+   * Return [F64_MAX, F64_MIN] by default if there was no event in the path.
+   */
+  public fast_bounding_range_y(): [Scalar, Scalar] {
+    let min_y = F64_MAX;
+    let max_y = F64_MIN;
+    for (let evt of this) {
+      let match = evt.match();
+      switch (match.type) {
+        case PathEventType.MoveTo: {
+          min_y = min_y.min(match.value.y);
+          max_y = max_y.max(match.value.y);
+          break;
+        }
+        case PathEventType.Line: {
+          let segment = match.value;
+          min_y = min_y.min(segment.end.y);
+          max_y = max_y.max(segment.end.y);
+          break;
+        }
+        case PathEventType.Quadratic: {
+          let segment = match.value;
+          min_y = min_y.min(segment.ctrl.y.min(segment.end.y));
+          max_y = max_y.max(segment.ctrl.y.max(segment.end.y));
+          break;
+        }
+        case PathEventType.Cubic: {
+          let segment = match.value;
+          min_y = min_y.min(segment.ctrl1.y.min(segment.ctrl2.y.min(segment.end.y)));
+          max_y = max_y.max(segment.ctrl1.y.max(segment.ctrl2.y.max(segment.end.y)));
+          break;
+        }
+        case PathEventType.Close:
+          break;
+      }
+    }
+
+    return [min_y, max_y];
+  }
+
+  /**
+   * Consumes the iterator and returns the smallest axis-aligned rectangle that
+   * contains the path.
+   */
+  public bounding_rect(): Rect {
+    let min = point(F64_MAX, F64_MAX);
+    let max = point(F64_MIN, F64_MIN);
+    for (let evt of this) {
+      let match = evt.match();
+      switch (match.type) {
+        case PathEventType.MoveTo: {
+          min.min_assign(match.value);
+          max.max_assign(match.value);
+          break;
+        }
+        case PathEventType.Line: {
+          let segment = match.value;
+          min.min_assign(segment.end);
+          max.max_assign(segment.end);
           break;
         }
         case PathEventType.Quadratic: {
           let segment = match.value;
           let r = segment.bounding_rect();
-          min = min.min_assign(r.origin);
-          max = max.max_assign(r.bottom_right());
+          min.min_assign(r.origin);
+          max.max_assign(r.bottom_right());
           break;
         }
         case PathEventType.Cubic: {
           let segment = match.value;
           let r = segment.bounding_rect();
-          min = min.min_assign(r.origin);
-          max = max.max_assign(r.bottom_right());
+          min.min_assign(r.origin);
+          max.max_assign(r.bottom_right());
           break;
         }
         case PathEventType.Close:
@@ -148,11 +241,101 @@ export class PathIterator extends IteratorBase<PathEvent> {
     }
 
     // Return an empty rectangle by default if there was no event in the path.
-    if (min.eq(point(Number.MAX_VALUE, Number.MAX_VALUE))) {
+    if (min.eq(point(F64_MAX, F64_MAX))) {
       return Rect.zero();
     }
 
     return new Rect(min, max.sub(min).to_size());
+  }
+
+  /**
+   * Consumes the iterator and returns a conservative range of x values
+   * that contains the path.
+   *
+   * Return [F64_MAX, F64_MIN] by default if there was no event in the path.
+   */
+  public bounding_range_x(): [Scalar, Scalar] {
+    let min_x = F64_MAX;
+    let max_x = F64_MIN;
+    for (let evt of this) {
+      let match = evt.match();
+      switch (match.type) {
+        case PathEventType.MoveTo: {
+          min_x = min_x.min(match.value.x);
+          max_x = max_x.max(match.value.x);
+          break;
+        }
+        case PathEventType.Line: {
+          let segment = match.value;
+          min_x = min_x.min(segment.end.x);
+          max_x = max_x.max(segment.end.x);
+          break;
+        }
+        case PathEventType.Quadratic: {
+          let segment = match.value;
+          let [min, max] = segment.bounding_range_x();
+          min_x = min_x.min(min);
+          max_x = max_x.max(max);
+          break;
+        }
+        case PathEventType.Cubic: {
+          let segment = match.value;
+          let [min, max] = segment.bounding_range_x();
+          min_x = min_x.min(min);
+          max_x = max_x.max(max);
+          break;
+        }
+        case PathEventType.Close:
+          break;
+      }
+    }
+
+    return [min_x, max_x];
+  }
+
+  /**
+   * Consumes the iterator and returns a conservative range of x values
+   * that contains the path.
+   *
+   * Return [F64_MAX, F64_MIN] by default if there was no event in the path.
+   */
+  public bounding_range_y(): [Scalar, Scalar] {
+    let min_y = F64_MAX;
+    let max_y = F64_MIN;
+    for (let evt of this) {
+      let match = evt.match();
+      switch (match.type) {
+        case PathEventType.MoveTo: {
+          min_y = min_y.min(match.value.y);
+          max_y = max_y.max(match.value.y);
+          break;
+        }
+        case PathEventType.Line: {
+          let segment = match.value;
+          min_y = min_y.min(segment.end.y);
+          max_y = max_y.max(segment.end.y);
+          break;
+        }
+        case PathEventType.Quadratic: {
+          let segment = match.value;
+          let [min, max] = segment.bounding_range_y();
+          min_y = min_y.min(min);
+          max_y = max_y.max(max);
+          break;
+        }
+        case PathEventType.Cubic: {
+          let segment = match.value;
+          let [min, max] = segment.bounding_range_y();
+          min_y = min_y.min(min);
+          max_y = max_y.max(max);
+          break;
+        }
+        case PathEventType.Close:
+          break;
+      }
+    }
+
+    return [min_y, max_y];
   }
 }
 
@@ -160,13 +343,13 @@ export class PathIterator extends IteratorBase<PathEvent> {
  * An extension to the common Iterator interface, that adds information which
  * useful when chaining path-specific iterators.
  */
-export class SvgIterator extends IteratorBase<SvgEvent> {
+export class SvgEventIterator extends DoubleEndedIterator<SvgEvent> {
   /**
    * The returned structure exposes the current position, the first position in
    * the current sub-path, and the position of the last control point.
    */
   public path_state(): PathState {
-    abstract_panic("SvgIterator", "path_state");
+    abstract_panic("SvgEventIterator", "path_state");
     return (undefined as unknown) as PathState;
   }
 
@@ -187,10 +370,10 @@ export class SvgIterator extends IteratorBase<SvgEvent> {
 }
 
 /**
- * An extension to the common Iterator interface, that adds information which
+ * An extension to the common Iterator interface, that adds information which is
  * useful when chaining path-specific iterators.
  */
-export class FlattenedIterator extends IteratorBase<FlattenedEvent> {
+export class FlattenedEventIterator extends IteratorBase<FlattenedEvent> {
   /**
    * Returns an iterator of path events
    */
@@ -248,20 +431,20 @@ export class FlattenedIterator extends IteratorBase<FlattenedEvent> {
    * that contains the path.
    */
   public fast_bounding_rect(): Rect {
-    let min = point(Number.MAX_VALUE, Number.MAX_VALUE);
-    let max = point(-Number.MAX_VALUE, -Number.MAX_VALUE);
+    let min = point(F64_MAX, F64_MAX);
+    let max = point(F64_MIN, F64_MIN);
     for (let evt of this) {
       let match = evt.match();
       switch (match.type) {
         case FlattenedEventType.MoveTo: {
-          min = min.min_assign(match.value);
-          max = max.max_assign(match.value);
+          min.min_assign(match.value);
+          max.max_assign(match.value);
           break;
         }
         case FlattenedEventType.Line: {
           let segment = match.value;
-          min = min.min_assign(segment.end);
-          max = max.max_assign(segment.end);
+          min.min_assign(segment.end);
+          max.max_assign(segment.end);
           break;
         }
         case FlattenedEventType.Close:
@@ -270,7 +453,7 @@ export class FlattenedIterator extends IteratorBase<FlattenedEvent> {
     }
 
     // Return an empty rectangle by default if there was no event in the path.
-    if (min.eq(point(Number.MAX_VALUE, Number.MAX_VALUE))) {
+    if (min.eq(point(F64_MAX, F64_MAX))) {
       return Rect.zero();
     }
 
@@ -279,21 +462,21 @@ export class FlattenedIterator extends IteratorBase<FlattenedEvent> {
 }
 
 /**
- * An extension to the common Iterator interface, that adds information which
+ * An extension to the common Iterator interface, that adds information which is
  * useful when chaining path-specific iterators.
  */
-export class QuadraticPathIterator extends IteratorBase<QuadraticEvent> {
+export class QuadraticPathEventIterator extends DoubleEndedIterator<QuadraticEvent> {
   /**
    * Returns an iterator of path events
    */
-  public path_events(): Map<this["Self"], PathEvent> {
+  public path_events(): MapDoubleEndedIterator<this["Self"], PathEvent> {
     return this.map(to_path_event);
   }
 
   /**
    * Returns an interator of svg events.
    */
-  public svg_events(): Map<this["Self"], SvgEvent> {
+  public svg_events(): MapDoubleEndedIterator<this["Self"], SvgEvent> {
     return this.map(to_svg_event);
   }
 
@@ -309,26 +492,26 @@ export class QuadraticPathIterator extends IteratorBase<QuadraticEvent> {
    * that contains the path.
    */
   public fast_bounding_rect(): Rect {
-    let min = point(Number.MAX_VALUE, Number.MAX_VALUE);
-    let max = point(-Number.MAX_VALUE, -Number.MAX_VALUE);
+    let min = point(F64_MAX, F64_MAX);
+    let max = point(F64_MIN, F64_MIN);
     for (let evt of this) {
       let match = evt.match();
       switch (match.type) {
         case QuadraticEventType.MoveTo: {
-          min = min.min_assign(match.value);
-          max = max.max_assign(match.value);
+          min.min_assign(match.value);
+          max.max_assign(match.value);
           break;
         }
         case QuadraticEventType.Line: {
           let segment = match.value;
-          min = min.min_assign(segment.end);
-          max = max.max_assign(segment.end);
+          min.min_assign(segment.end);
+          max.max_assign(segment.end);
           break;
         }
         case QuadraticEventType.Quadratic: {
           let segment = match.value;
-          min = min.min_assign(segment.ctrl.min(segment.end));
-          max = max.max_assign(segment.ctrl.max(segment.end));
+          min.min_assign(segment.ctrl.min(segment.end));
+          max.max_assign(segment.ctrl.max(segment.end));
           break;
         }
         case QuadraticEventType.Close:
@@ -337,7 +520,7 @@ export class QuadraticPathIterator extends IteratorBase<QuadraticEvent> {
     }
 
     // Return an empty rectangle by default if there was no event in the path.
-    if (min.eq(point(Number.MAX_VALUE, Number.MAX_VALUE))) {
+    if (min.eq(point(F64_MAX, F64_MAX))) {
       return Rect.zero();
     }
 
@@ -349,27 +532,27 @@ export class QuadraticPathIterator extends IteratorBase<QuadraticEvent> {
    * contains the path.
    */
   public bounding_rect(): Rect {
-    let min = point(Number.MAX_VALUE, Number.MAX_VALUE);
-    let max = point(-Number.MAX_VALUE, -Number.MAX_VALUE);
+    let min = point(F64_MAX, F64_MAX);
+    let max = point(F64_MIN, F64_MIN);
     for (let evt of this) {
       let match = evt.match();
       switch (match.type) {
         case QuadraticEventType.MoveTo: {
-          min = min.min_assign(match.value);
-          max = max.max_assign(match.value);
+          min.min_assign(match.value);
+          max.max_assign(match.value);
           break;
         }
         case QuadraticEventType.Line: {
           let segment = match.value;
-          min = min.min_assign(segment.end);
-          max = max.max_assign(segment.end);
+          min.min_assign(segment.end);
+          max.max_assign(segment.end);
           break;
         }
         case QuadraticEventType.Quadratic: {
           let segment = match.value;
           let r = segment.bounding_rect();
-          min = min.min_assign(r.origin);
-          max = max.max_assign(r.bottom_right());
+          min.min_assign(r.origin);
+          max.max_assign(r.bottom_right());
           break;
         }
         case QuadraticEventType.Close:
@@ -378,7 +561,7 @@ export class QuadraticPathIterator extends IteratorBase<QuadraticEvent> {
     }
 
     // Return an empty rectangle by default if there was no event in the path.
-    if (min.eq(point(Number.MAX_VALUE, Number.MAX_VALUE))) {
+    if (min.eq(point(F64_MAX, F64_MAX))) {
       return Rect.zero();
     }
 
@@ -389,7 +572,7 @@ export class QuadraticPathIterator extends IteratorBase<QuadraticEvent> {
 /**
  * Turns an iterator of SVG path commands into an iterator of `PathEvent`.
  */
-export class PathEvents<I extends SvgIterator> extends PathIterator {
+export class PathEvents<I extends SvgEventIterator> extends PathEventIterator {
   public Self!: PathEvents<I>;
 
   public iter: I;
@@ -405,11 +588,26 @@ export class PathEvents<I extends SvgIterator> extends PathIterator {
   public Item!: PathEvent;
 
   public next(): Option<this["Item"]> {
-    let pop = this.arc_to_cubics.pop();
-    if (pop) {
-      return Some(PathEvent.Cubic(pop));
+    let cubic = this.arc_to_cubics.pop();
+    if (cubic) {
+      return Some(PathEvent.Cubic(cubic));
     }
     let next = this.iter.next();
+    if (next.is_some()) {
+      let svg_evt = next.unwrap();
+      return Some(svg_to_path_event(svg_evt, this.iter.path_state().clone(), this.arc_to_cubics));
+    }
+
+    return None();
+  }
+
+  // DoubleEndedIterator
+  public next_back(): Option<this["Item"]> {
+    let cubic = this.arc_to_cubics.shift();
+    if (cubic) {
+      return Some(PathEvent.Cubic(cubic));
+    }
+    let next = this.iter.next_back();
     if (next.is_some()) {
       let svg_evt = next.unwrap();
       return Some(svg_to_path_event(svg_evt, this.iter.path_state().clone(), this.arc_to_cubics));
@@ -584,7 +782,7 @@ class TmpFlatteningIter {
 /**
  * An iterator that consumes `PathEvent` iterator and yields FlattenedEvents.
  */
-export class FlattenedPath<I extends PathIterator> extends FlattenedIterator {
+export class FlattenedPath<I extends PathEventIterator> extends FlattenedEventIterator {
   public Self!: FlattenedPath<I>;
 
   public iter: I;
@@ -660,9 +858,70 @@ export class FlattenedPath<I extends PathIterator> extends FlattenedIterator {
     }
     return None();
   }
+
+  // public next_back(): Option<this["Item"]> {
+  //   let match = this.current_curve.match();
+  //   switch (match.type) {
+  //     case TmpFlatteningIterType.Quadratic: {
+  //       let it = match.value;
+  //       let next = it.next_back();
+  //       if (next.is_some()) {
+  //         let to = this.current_position;
+  //         let from = next.unwrap();
+  //         this.current_position = from;
+  //         return Some(FlattenedEvent.Line(new LineSegment(from, to)));
+  //       }
+  //       break;
+  //     }
+  //     case TmpFlatteningIterType.Cubic: {
+  //       let it = match.value;
+  //       let next = it.next_back();
+  //       if (next.is_some()) {
+  //         let to = this.current_position;
+  //         let from = next.unwrap();
+  //         this.current_position = from;
+  //         return Some(FlattenedEvent.Line(new LineSegment(from, to)));
+  //       }
+  //       break;
+  //     }
+  //     default:
+  //       break;
+  //   }
+  //   this.current_curve = TmpFlatteningIter.None();
+  //   let next = this.iter.next_back();
+  //   if (next.is_some()) {
+  //     let match = next.unwrap().match();
+  //     switch (match.type) {
+  //       case PathEventType.MoveTo:
+  //         return Some(FlattenedEvent.MoveTo(match.value));
+  //       case PathEventType.Line:
+  //         return Some(FlattenedEvent.Line(match.value));
+  //       case PathEventType.Close:
+  //         return Some(FlattenedEvent.Close(match.value));
+  //       case PathEventType.Quadratic: {
+  //         let segment = match.value;
+  //         this.current_position = segment.to();
+  //         this.current_curve = TmpFlatteningIter.Quadratic(segment.flattened(this.tolerance));
+  //         this.next_back();
+  //         break;
+  //       }
+  //       case PathEventType.Cubic: {
+  //         let segment = match.value;
+  //         this.current_position = segment.to();
+  //         this.current_curve = TmpFlatteningIter.Cubic(segment.flattened(this.tolerance));
+  //         this.next_back();
+  //         break;
+  //       }
+  //     }
+  //   }
+  //   return None();
+  // }
 }
 
-export class SvgPathIter<E extends IntoSvgEvent, I extends IteratorCommon<E>> extends SvgIterator {
+export class SvgPathIter<
+  E extends IntoSvgEvent,
+  I extends DoubleEndedIteratorCommon<E>
+> extends SvgEventIterator {
   public Self!: SvgPathIter<E, I>;
 
   public iter: I;
@@ -674,7 +933,7 @@ export class SvgPathIter<E extends IntoSvgEvent, I extends IteratorCommon<E>> ex
     this.state = new PathState();
   }
 
-  // SvgIterator
+  // SvgEventIterator
   public path_state(): PathState {
     return this.state;
   }
@@ -684,6 +943,20 @@ export class SvgPathIter<E extends IntoSvgEvent, I extends IteratorCommon<E>> ex
 
   public next(): Option<this["Item"]> {
     let match = this.iter.next().match();
+    switch (match.type) {
+      case OptionType.Some: {
+        let svg_evt = match.value.to_svg_event();
+        this.state.svg_event(svg_evt);
+        return Some(svg_evt);
+      }
+      case OptionType.None:
+        return None();
+    }
+  }
+
+  // DoubleEndedIterator
+  public next_back(): Option<this["Item"]> {
+    let match = this.iter.next_back().match();
     switch (match.type) {
       case OptionType.Some: {
         let svg_evt = match.value.to_svg_event();
@@ -706,7 +979,7 @@ function to_svg_event<E extends IntoSvgEvent>(evt: E): SvgEvent {
 /**
  * Applies a 2D transform to a path iterator and yields the resulting path iterator.
  */
-export class TransformedPath<I extends PathIterator> extends PathIterator {
+export class TransformedPath<I extends PathEventIterator> extends PathEventIterator {
   public Self!: TransformedPath<I>;
 
   public iter: I;
@@ -730,12 +1003,25 @@ export class TransformedPath<I extends PathIterator> extends PathIterator {
         return None();
     }
   }
+
+  // DoubleEndedIterator
+  public next_back(): Option<this["Item"]> {
+    let match = this.iter.next_back().match();
+    switch (match.type) {
+      case OptionType.Some:
+        return Some(match.value.transform(this.transform));
+      case OptionType.None:
+        return None();
+    }
+  }
 }
 
 /**
  * Applies a 2D transform to a path iterator and yields the resulting path iterator.
  */
-export class TransformedQuadratic<I extends QuadraticPathIterator> extends QuadraticPathIterator {
+export class TransformedQuadratic<
+  I extends QuadraticPathEventIterator
+> extends QuadraticPathEventIterator {
   public Self!: TransformedQuadratic<I>;
 
   public iter: I;
@@ -759,12 +1045,23 @@ export class TransformedQuadratic<I extends QuadraticPathIterator> extends Quadr
         return None();
     }
   }
+
+  // DoubleEndedIterator
+  public next_back(): Option<this["Item"]> {
+    let match = this.iter.next_back().match();
+    switch (match.type) {
+      case OptionType.Some:
+        return Some(match.value.transform(this.transform));
+      case OptionType.None:
+        return None();
+    }
+  }
 }
 
 /**
  * Applies a 2D transform to a path iterator and yields the resulting path iterator.
  */
-export class TransformedFlattened<I extends FlattenedIterator> extends FlattenedIterator {
+export class TransformedFlattened<I extends FlattenedEventIterator> extends FlattenedEventIterator {
   public Self!: TransformedFlattened<I>;
 
   public iter: I;
@@ -788,29 +1085,44 @@ export class TransformedFlattened<I extends FlattenedIterator> extends Flattened
         return None();
     }
   }
+
+  // DoubleEndedIterator
+  // public next_back(): Option<this["Item"]> {
+  //   let match = this.iter.next_back().match();
+  //   switch (match.type) {
+  //     case OptionType.Some:
+  //       return Some(match.value.transform(this.transform));
+  //     case OptionType.None:
+  //       return None();
+  //   }
+  // }
 }
 
 /**
- * An iterator that concumes an iterator of `Point`s and produces `FlattenedEvent`s.
+ * An iterator that consumes an iterator of `Point`s and produces `FlattenedEvent`s.
  */
-export class FromPolyline<I extends IteratorCommon<Point>> extends FlattenedIterator {
+export class FromPolyline<I extends IteratorCommon<Point>> extends FlattenedEventIterator {
   public Self!: FromPolyline<I>;
 
   public iter: I;
-  public current: Point;
+  public current_front: Point;
+  public current_back: Point;
   public first: Point;
   public is_first: boolean;
-  public done: boolean;
-  public close: boolean;
+
+  private _need_moveto: boolean;
+  private _need_close: boolean;
 
   public constructor(iter: I, close: boolean) {
     super();
     this.iter = iter;
-    this.current = Point.zero();
+    this.current_front = Point.zero();
+    this.current_back = Point.zero();
     this.first = Point.zero();
     this.is_first = true;
-    this.done = false;
-    this.close = close;
+
+    this._need_close = close;
+    this._need_moveto = true;
   }
 
   public static closed<I extends IteratorCommon<Point>>(iter: I): FromPolyline<I> {
@@ -825,19 +1137,15 @@ export class FromPolyline<I extends IteratorCommon<Point>> extends FlattenedIter
   public Item!: FlattenedEvent;
 
   public next(): Option<this["Item"]> {
-    if (this.done) {
-      return None();
-    }
-
     let next = this.iter.next();
     if (next.is_some()) {
       let to = next.unwrap();
       debug_assert(isFinite(to.x));
       debug_assert(isFinite(to.y));
-      let from = this.current;
-      this.current = to;
-      if (this.is_first) {
-        this.is_first = false;
+      let from = this.current_front;
+      this.current_front = to;
+      if (this._need_moveto) {
+        this._need_moveto = false;
         this.first = to;
         return Some(FlattenedEvent.MoveTo(to));
       } else {
@@ -845,26 +1153,74 @@ export class FromPolyline<I extends IteratorCommon<Point>> extends FlattenedIter
       }
     }
 
-    this.done = true;
-    if (this.close) {
-      return Some(FlattenedEvent.Close(new LineSegment(this.current, this.first)));
+    if (this._need_close) {
+      this._need_close = false;
+      return Some(FlattenedEvent.Close(new LineSegment(this.current_front, this.first)));
     }
 
     return None();
   }
+
+  // DoubleEndedIterator
+  // public next_back(): Option<this["Item"]> {
+  //   let next = this.iter.next_back();
+  //   if (next.is_some()) {
+  //     let from = next.unwrap();
+  //     debug_assert(isFinite(from.x));
+  //     debug_assert(isFinite(from.y));
+  //     let to = this.current_back;
+  //     this.current_back = from;
+  //     if (this.is_first) {
+  //       this.is_first = false;
+  //       next = this.iter.next_back();
+  //       if (next.is_some()) {
+  //         to = from;
+  //         from = next.unwrap();
+  //         debug_assert(isFinite(from.x));
+  //         debug_assert(isFinite(from.y));
+  //         this.current_back = from;
+  //         if (this._need_close) {
+  //           this._need_close = false;
+  //           return Some(FlattenedEvent.Close(new LineSegment(from, to)));
+  //         } else {
+  //           return Some(FlattenedEvent.Line(new LineSegment(from, to)));
+  //         }
+  //       }
+  //       if (this._need_close) {
+  //         this._need_close = false;
+  //         return Some(FlattenedEvent.Close(new LineSegment(from, from)));
+  //       } else {
+  //         return Some(FlattenedEvent.Line(new LineSegment(from, from)));
+  //       }
+  //     } else {
+  //       return Some(FlattenedEvent.Line(new LineSegment(from, to)));
+  //     }
+  //   }
+  //
+  //   if (this._need_moveto) {
+  //     return Some(FlattenedEvent.MoveTo(this.current_back));
+  //   }
+  //
+  //   return None();
+  // }
 }
 
 /**
  * Turns an iterator of `PathEvent` into an iterator of `BezierSegment`.
  */
-export class BezierSegments<I extends PathIterator> extends IteratorBase<BezierSegment> {
+export class BezierSegments<I extends PathEventIterator> extends DoubleEndedIterator<
+  BezierSegment
+> {
   public Self!: BezierSegments<I>;
 
   public iter: I;
 
-  public constructor(iter: I) {
+  private _include_degenerate_closing_segment: boolean;
+
+  public constructor(iter: I, include_degenerate_closing_segment: boolean) {
     super();
     this.iter = iter;
+    this._include_degenerate_closing_segment = include_degenerate_closing_segment;
   }
 
   // Iterator
@@ -876,8 +1232,17 @@ export class BezierSegments<I extends PathIterator> extends IteratorBase<BezierS
       let match = next.unwrap().match();
       switch (match.type) {
         case PathEventType.Line:
-        case PathEventType.Close:
+        case PathEventType.Close: {
+          let line = match.value;
+          if (line.is_degenerate(0)) {
+            if (this._include_degenerate_closing_segment) {
+              return Some(BezierSegment.Linear(match.value));
+            } else {
+              return this.next();
+            }
+          }
           return Some(BezierSegment.Linear(match.value));
+        }
         case PathEventType.Quadratic:
           return Some(BezierSegment.Quadratic(match.value));
         case PathEventType.Cubic:
@@ -888,12 +1253,41 @@ export class BezierSegments<I extends PathIterator> extends IteratorBase<BezierS
     }
     return None();
   }
+
+  // DoubleEndedIterator
+  public next_back(): Option<this["Item"]> {
+    let next = this.iter.next_back();
+    if (next.is_some()) {
+      let match = next.unwrap().match();
+      switch (match.type) {
+        case PathEventType.Line:
+        case PathEventType.Close: {
+          let line = match.value;
+          if (line.is_degenerate(0)) {
+            if (this._include_degenerate_closing_segment) {
+              return Some(BezierSegment.Linear(match.value));
+            } else {
+              return this.next_back();
+            }
+          }
+          return Some(BezierSegment.Linear(match.value));
+        }
+        case PathEventType.Quadratic:
+          return Some(BezierSegment.Quadratic(match.value));
+        case PathEventType.Cubic:
+          return Some(BezierSegment.Cubic(match.value));
+        case PathEventType.MoveTo:
+          return this.next_back();
+      }
+    }
+    return None();
+  }
 }
 
 /**
  * Turns an iterator of `FlattenedEvent` into an iterator of `LineSegment`.
  */
-export class LineSegments<I extends FlattenedIterator> extends IteratorBase<LineSegment> {
+export class LineSegments<I extends FlattenedEventIterator> extends IteratorBase<LineSegment> {
   public Self!: LineSegments<I>;
 
   public iter: I;
@@ -920,4 +1314,20 @@ export class LineSegments<I extends FlattenedIterator> extends IteratorBase<Line
     }
     return None();
   }
+
+  // DoubleEndedIterator
+  // public next_back(): Option<this["Item"]> {
+  //   let next = this.iter.next_back();
+  //   if (next.is_some()) {
+  //     let match = next.unwrap().match();
+  //     switch (match.type) {
+  //       case FlattenedEventType.Line:
+  //       case FlattenedEventType.Close:
+  //         return Some(match.value);
+  //       case FlattenedEventType.MoveTo:
+  //         return this.next_back();
+  //     }
+  //   }
+  //   return None();
+  // }
 }

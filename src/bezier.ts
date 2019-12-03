@@ -76,9 +76,9 @@ export class FlattenedCubic<U = any> extends IteratorBase<Point<U>> {
 
     this.remaining_curve = bezier;
     this.current_curve = None();
-    (this.next_inflection = inflections.get(0).cloned()),
-      (this.following_inflection = inflections.get(1).cloned()),
-      (this.tolerance = tolerance);
+    this.next_inflection = inflections.get(0).cloned();
+    this.following_inflection = inflections.get(1).cloned();
+    this.tolerance = tolerance;
     this.check_inflection = false;
 
     let first_inflection = inflections.get(0);
@@ -88,6 +88,8 @@ export class FlattenedCubic<U = any> extends IteratorBase<Point<U>> {
       this.current_curve = Some(before);
       this.remaining_curve = after;
       inflections.get(1).map((t2: Scalar) => {
+        // Adjust the second inflection since we removed the part before the first
+        // inflection from the bezier curve
         t2 = (t2 - t1) / (1 - t1);
         this.following_inflection = Some(t2);
       });
@@ -103,6 +105,8 @@ export class FlattenedCubic<U = any> extends IteratorBase<Point<U>> {
   public next(): Option<this["Item"]> {
     if (this.current_curve.is_none() && this.next_inflection.is_some()) {
       if (this.following_inflection.is_some()) {
+        // No need to re-mapt2 in the curve because we already did iter_points
+        // in the interators's constructor function.
         let t2 = this.following_inflection.unwrap();
         let [before, after] = this.remaining_curve.split(t2);
         this.current_curve = Some(before);
@@ -606,6 +610,11 @@ export class CubicBezierSegment<U = any> extends ImplPartialEq(SegmentFlattenedF
 
   public baseline(): LineSegment {
     return new LineSegment(this.from(), this.to());
+  }
+
+  // Returns whether this segment is degenerate.
+  public is_degenerate(tolerance: Scalar): boolean {
+    return this.is_linear(tolerance);
   }
 
   public is_linear(tolerance: Scalar): boolean {
@@ -1442,6 +1451,11 @@ export class QuadraticBezierSegment<U = any> extends ImplPartialEq(SegmentWithFl
     return new LineSegment(this.from(), this.to());
   }
 
+  // Returns whether this segment is degenerate.
+  public is_degenerate(tolerance: Scalar): boolean {
+    return this.is_linear(tolerance);
+  }
+
   public is_linear(tolerance: Scalar): boolean {
     if (this.start.sub(this.end).square_length() < EPSILON) {
       return false;
@@ -1451,6 +1465,16 @@ export class QuadraticBezierSegment<U = any> extends ImplPartialEq(SegmentWithFl
       .equation();
 
     return ln.distance_to_point(this.ctrl) < tolerance;
+  }
+
+  public is_a_point(tolerance: Scalar): boolean {
+    let tolerance_squared = tolerance * tolerance;
+    // Use <= so that tolerance can be zero
+    return (
+      this.start.sub(this.end).square_length() <= tolerance_squared &&
+      this.start.sub(this.ctrl).square_length() <= tolerance_squared &&
+      this.end.sub(this.ctrl).square_length() <= tolerance_squared
+    );
   }
 
   // Computes a "fat line" of this segment.
@@ -1476,7 +1500,7 @@ export class QuadraticBezierSegment<U = any> extends ImplPartialEq(SegmentWithFl
     );
   }
 
-  // Find the interval of the beginning of the curve that cen be approximated with a line segment.
+  // Find the interval of the beginning of the curve that can be approximated with a line segment.
   public flattening_step(tolerance: Scalar): Scalar {
     let v1 = this.ctrl.sub(this.start);
     let v2 = this.end.sub(this.start);
